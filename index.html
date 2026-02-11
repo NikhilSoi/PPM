@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpsSim: The Product-Process Matrix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
+        
+        /* Custom Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+
+        /* Matrix Background Grid */
+        .matrix-grid {
+            background-image: 
+                linear-gradient(#334155 1px, transparent 1px),
+                linear-gradient(90deg, #334155 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #1e293b;
+        }
+        
+        .diagonal-zone {
+            background: linear-gradient(135deg, 
+                rgba(239, 68, 68, 0.1) 0%, 
+                rgba(34, 197, 94, 0.2) 40%, 
+                rgba(34, 197, 94, 0.2) 60%, 
+                rgba(239, 68, 68, 0.1) 100%);
+        }
+
+        .marker {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 15px 5px rgba(56, 189, 248, 0.4);
+        }
+
+        /* Table Styles */
+        .log-table th { text-align: left; padding: 12px; color: #94a3b8; font-size: 0.85rem; border-bottom: 1px solid #334155; }
+        .log-table td { padding: 12px; border-bottom: 1px solid #1e293b; color: #e2e8f0; font-size: 0.9rem; }
+        .log-table tr:last-child td { border-bottom: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-6">
+
+    <!-- Header -->
+    <header class="mb-8 flex justify-between items-center border-b border-slate-700 pb-4">
+        <div>
+            <h1 class="text-3xl font-bold text-sky-400">OpsSim: Product-Process Matrix</h1>
+            <p class="text-slate-400">Interactive Simulation of Operations Strategy & Lifecycle Impact</p>
+        </div>
+        <div class="text-right text-sm text-slate-500">
+            <p>Move sliders to change Product Structure.</p>
+            <p>Observe impact on Process & Environment.</p>
+        </div>
+    </header>
+
+    <main class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- LEFT COLUMN: CONTROLS & MATRIX -->
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- Controls -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+                <div class="mb-6">
+                    <div class="flex justify-between mb-2">
+                        <label class="font-semibold text-purple-400">Product Variety</label>
+                        <span id="variety-val" class="text-purple-200">High</span>
+                    </div>
+                    <input type="range" id="variety-input" min="0" max="100" value="90" class="w-full">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Standardised (Low)</span>
+                        <span>Custom (High)</span>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between mb-2">
+                        <label class="font-semibold text-sky-400">Production Volume</label>
+                        <span id="volume-val" class="text-sky-200">Low</span>
+                    </div>
+                    <input type="range" id="volume-input" min="0" max="100" value="10" class="w-full">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Low Volume</span>
+                        <span>Mass Production</span>
+                    </div>
+                </div>
+
+                <button onclick="recordSnapshot()" class="w-full py-3 bg-slate-700 hover:bg-sky-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-600 hover:border-sky-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    Record Data Snapshot
+                </button>
+            </div>
+
+            <!-- The Matrix Visual -->
+            <div class="relative bg-slate-800 rounded-xl border border-slate-700 aspect-video shadow-2xl overflow-hidden group">
+                <!-- Labels -->
+                <div class="absolute top-4 left-4 text-xs font-bold text-slate-500 z-10">JOB SHOP<br>(High Variety/Low Vol)</div>
+                <div class="absolute bottom-4 right-4 text-xs font-bold text-slate-500 text-right z-10">CONTINUOUS FLOW<br>(Low Variety/High Vol)</div>
+                <div class="absolute top-4 right-4 text-xs font-bold text-slate-600 z-10 opacity-50">Inefficient<br>(Opportunity Cost)</div>
+                <div class="absolute bottom-4 left-4 text-xs font-bold text-slate-600 z-10 opacity-50">Inefficient<br>(Chaos)</div>
+
+                <!-- Diagonal "Sweet Spot" Overlay -->
+                <div class="absolute inset-0 diagonal-zone opacity-50"></div>
+
+                <!-- Grid Lines -->
+                <div class="absolute inset-0 matrix-grid opacity-30"></div>
+
+                <!-- The Marker (The User's Factory) -->
+                <div id="factory-marker" class="marker absolute w-6 h-6 bg-white border-2 border-sky-500 rounded-full transform -translate-x-1/2 -translate-y-1/2 z-20"></div>
+                
+                <!-- Axis Labels -->
+                <div class="absolute bottom-1 w-full text-center text-xs text-sky-500 font-mono tracking-widest">VOLUME →</div>
+                <div class="absolute left-1 h-full flex items-center text-xs text-purple-500 font-mono tracking-widest" style="writing-mode: vertical-rl; transform: rotate(180deg);">VARIETY →</div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: DASHBOARD -->
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Process Status Card -->
+            <div class="bg-slate-800 p-6 rounded-xl border-l-4 border-sky-500 shadow-lg" id="status-card">
+                <h2 class="text-lg font-bold text-white mb-1">Current Process: <span id="process-name" class="text-sky-400">Job Shop</span></h2>
+                <p id="process-desc" class="text-sm text-slate-400 mb-4">High flexibility, skilled labor, general-purpose equipment.</p>
+                
+                <!-- Efficiency Indicator -->
+                <div class="bg-slate-900 rounded-full h-4 w-full overflow-hidden relative">
+                    <div id="efficiency-bar" class="h-full bg-green-500 transition-all duration-300" style="width: 100%"></div>
+                </div>
+                <div class="flex justify-between text-xs mt-1">
+                    <span class="text-slate-500">Strategic Mismatch</span>
+                    <span class="text-green-500 font-bold">Optimal Fit</span>
+                </div>
+                <div id="advisor-msg" class="mt-3 text-sm font-semibold text-amber-400 italic">"Excellent fit for custom orders."</div>
+            </div>
+
+            <!-- SOA Strategy Board -->
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-center opacity-50 transition-opacity" id="soa-std">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Standardise</div>
+                    <div class="text-xl font-bold text-white" id="val-std">High</div>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-center opacity-50 transition-opacity" id="soa-opt">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Optimise</div>
+                    <div class="text-xl font-bold text-white" id="val-opt">Med</div>
+                </div>
+                <div class="bg-slate-800 p-3 rounded-lg border border-slate-700 text-center opacity-50 transition-opacity" id="soa-auto">
+                    <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Automate</div>
+                    <div class="text-xl font-bold text-white" id="val-auto">Low</div>
+                </div>
+            </div>
+
+            <!-- LCA Impact Panel -->
+            <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg flex-grow">
+                <h3 class="font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    LCA Impact Analysis
+                </h3>
+                
+                <!-- LCA Meters -->
+                <div class="space-y-4">
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-slate-300">Material Waste</span>
+                            <span id="waste-text" class="text-slate-300">High</span>
+                        </div>
+                        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="waste-bar" class="h-full bg-red-400 transition-all duration-500" style="width: 80%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-slate-300">Energy Intensity</span>
+                            <span id="energy-text" class="text-slate-300">Low</span>
+                        </div>
+                        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="energy-bar" class="h-full bg-yellow-400 transition-all duration-500" style="width: 20%"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-slate-300">Changeover Risk</span>
+                            <span id="flex-text" class="text-slate-300">Low</span>
+                        </div>
+                        <div class="h-2 bg-slate-700 rounded-full overflow-hidden">
+                            <div id="flex-bar" class="h-full bg-blue-400 transition-all duration-500" style="width: 10%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 p-4 bg-slate-900 rounded text-xs text-slate-400 border border-slate-700">
+                    <strong class="text-slate-200 block mb-1">Environmental Note:</strong>
+                    <span id="lca-note">Job Shops tend to have higher material waste (scrap) due to constant setup changes, but lower overall energy consumption than mass production lines.</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- LOGGING SECTION -->
+        <div class="lg:col-span-12">
+            <div class="bg-slate-800 rounded-xl border border-slate-700 shadow-lg overflow-hidden">
+                <div class="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
+                    <h3 class="font-bold text-white">Student Simulation Log</h3>
+                    <button onclick="clearLog()" class="text-xs text-red-400 hover:text-red-300">Clear Log</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full log-table" id="log-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Variety</th>
+                                <th>Volume</th>
+                                <th>Process Type</th>
+                                <th>Efficiency</th>
+                                <th>Strategy</th>
+                                <th>Waste</th>
+                                <th>Energy</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body">
+                            <!-- Rows added here -->
+                        </tbody>
+                    </table>
+                    <div id="empty-log-msg" class="p-8 text-center text-slate-500 italic text-sm">
+                        No data recorded yet. Adjust sliders and click "Record Data Snapshot".
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // DOM Elements
+        const varietyInput = document.getElementById('variety-input');
+        const volumeInput = document.getElementById('volume-input');
+        const varietyLabel = document.getElementById('variety-val');
+        const volumeLabel = document.getElementById('volume-val');
+        const marker = document.getElementById('factory-marker');
+        
+        const processName = document.getElementById('process-name');
+        const processDesc = document.getElementById('process-desc');
+        const efficiencyBar = document.getElementById('efficiency-bar');
+        const advisorMsg = document.getElementById('advisor-msg');
+        const statusCard = document.getElementById('status-card');
+
+        // SOA Elements
+        const soaStd = document.getElementById('soa-std');
+        const soaOpt = document.getElementById('soa-opt');
+        const soaAuto = document.getElementById('soa-auto');
+
+        // LCA Elements
+        const wasteBar = document.getElementById('waste-bar');
+        const energyBar = document.getElementById('energy-bar');
+        const flexBar = document.getElementById('flex-bar');
+        const wasteText = document.getElementById('waste-text');
+        const energyText = document.getElementById('energy-text');
+        const flexText = document.getElementById('flex-text');
+        const lcaNote = document.getElementById('lca-note');
+
+        // Logging Elements
+        const logBody = document.getElementById('log-body');
+        const emptyLogMsg = document.getElementById('empty-log-msg');
+        let snapshotCount = 0;
+
+        // State Store
+        let currentState = {
+            variety: 0,
+            volume: 0,
+            process: '',
+            efficiency: 0,
+            strategy: '',
+            waste: '',
+            energy: ''
+        };
+
+        function updateSimulation() {
+            // Get Values (0-100)
+            const variety = parseInt(varietyInput.value);
+            const volume = parseInt(volumeInput.value);
+
+            // Update Input Labels
+            varietyLabel.textContent = variety > 66 ? 'High' : variety > 33 ? 'Medium' : 'Low';
+            volumeLabel.textContent = volume > 66 ? 'High' : volume > 33 ? 'Medium' : 'Low';
+
+            // 1. Move Marker
+            marker.style.top = `${100 - variety}%`;
+            marker.style.left = `${volume}%`;
+
+            // 2. Determine Process Type
+            let type = "";
+            let desc = "";
+            
+            if (variety > 60 && volume < 40) {
+                type = "Job Shop";
+                desc = "High variety, low volume. Focus: Skilled workers & General tools.";
+            } else if (variety > 40 && volume > 30 && volume < 70) {
+                type = "Batch Flow";
+                desc = "Disconnected line. Batches of products move through work centers.";
+            } else if (variety < 40 && volume > 60) {
+                type = "Continuous Flow";
+                desc = "Automated, rigid flow. 24/7 operation. Low unit cost.";
+            } else {
+                type = "Assembly Line";
+                desc = "Linear sequence of operations. Moderate variety, high volume.";
+            }
+            
+            processName.textContent = type;
+            processDesc.textContent = desc;
+
+            // 3. Calculate Efficiency
+            const sum = variety + volume;
+            const deviation = Math.abs(sum - 100); 
+            let efficiency = 100 - deviation; 
+            if (efficiency < 0) efficiency = 0;
+            
+            efficiencyBar.style.width = `${efficiency}%`;
+            
+            if (efficiency > 80) {
+                efficiencyBar.className = "h-full bg-green-500 transition-all duration-300";
+                statusCard.className = "bg-slate-800 p-6 rounded-xl border-l-4 border-green-500 shadow-lg";
+                advisorMsg.textContent = "Great Operational Match! Low cost, high quality.";
+                advisorMsg.className = "mt-3 text-sm font-semibold text-green-400";
+            } else if (efficiency > 50) {
+                efficiencyBar.className = "h-full bg-yellow-500 transition-all duration-300";
+                statusCard.className = "bg-slate-800 p-6 rounded-xl border-l-4 border-yellow-500 shadow-lg";
+                advisorMsg.textContent = "Warning: Process drift detected. Inefficiencies rising.";
+                advisorMsg.className = "mt-3 text-sm font-semibold text-yellow-400";
+            } else {
+                efficiencyBar.className = "h-full bg-red-500 transition-all duration-300";
+                statusCard.className = "bg-slate-800 p-6 rounded-xl border-l-4 border-red-500 shadow-lg";
+                advisorMsg.className = "mt-3 text-sm font-semibold text-red-400";
+                
+                if (sum > 100) {
+                    advisorMsg.textContent = "CRITICAL: Automated Chaos! You are forcing high variety through a rigid line.";
+                } else {
+                    advisorMsg.textContent = "CRITICAL: Opportunity Cost! Your volume is too low for your manual capabilities.";
+                }
+            }
+
+            // 4. Update SOA Highlights
+            soaStd.style.opacity = "0.5"; soaStd.style.borderColor = "#334155";
+            soaOpt.style.opacity = "0.5"; soaOpt.style.borderColor = "#334155";
+            soaAuto.style.opacity = "0.5"; soaAuto.style.borderColor = "#334155";
+
+            let strategy = "";
+
+            if (volume < 40) {
+                soaStd.style.opacity = "1"; soaStd.style.borderColor = "#38bdf8";
+                document.getElementById('val-std').textContent = "Critical";
+                document.getElementById('val-opt').textContent = "Med";
+                document.getElementById('val-auto').textContent = "Low";
+                strategy = "Standardisation";
+            } else if (volume > 70) {
+                soaAuto.style.opacity = "1"; soaAuto.style.borderColor = "#38bdf8";
+                document.getElementById('val-std').textContent = "Done";
+                document.getElementById('val-opt').textContent = "High";
+                document.getElementById('val-auto').textContent = "Critical";
+                strategy = "Automation";
+            } else {
+                soaOpt.style.opacity = "1"; soaOpt.style.borderColor = "#38bdf8";
+                document.getElementById('val-std').textContent = "High";
+                document.getElementById('val-opt').textContent = "Critical";
+                document.getElementById('val-auto').textContent = "Med";
+                strategy = "Optimisation";
+            }
+
+            // 5. Update LCA Metrics
+            let wasteScore = (variety * 0.8) + (100 - efficiency) * 0.2; 
+            wasteBar.style.width = `${wasteScore}%`;
+            wasteText.textContent = wasteScore > 70 ? "High" : wasteScore > 40 ? "Med" : "Low";
+
+            let energyScore = volume; 
+            if (efficiency < 50) energyScore += 20;
+            if (energyScore > 100) energyScore = 100;
+            energyBar.style.width = `${energyScore}%`;
+            energyText.textContent = energyScore > 70 ? "High" : energyScore > 40 ? "Med" : "Low";
+
+            let flexScore = volume;
+            flexBar.style.width = `${flexScore}%`;
+            flexText.textContent = flexScore > 70 ? "Rigid" : "Agile";
+
+            // Update State Store
+            currentState = {
+                variety: variety,
+                volume: volume,
+                process: type,
+                efficiency: Math.round(efficiency),
+                strategy: strategy,
+                waste: wasteText.textContent,
+                energy: energyText.textContent
+            };
+
+            // LCA Note
+            if (volume > 80) {
+                lcaNote.textContent = "Continuous Flow reduces per-unit waste, but massive energy consumption creates a large carbon footprint. End-of-life disposal is the biggest risk.";
+            } else if (variety > 80) {
+                lcaNote.textContent = "Job Shops generate high material waste (off-cuts, test runs) due to constant setups. Energy use is low, but sourcing impact is high.";
+            } else if (efficiency < 40 && sum > 100) {
+                lcaNote.textContent = "WARNING: Process mismatch generates maximum waste. Machines idling, defective products, and energy spikes due to changeovers.";
+            } else {
+                lcaNote.textContent = "Balanced approach. Optimised batch sizes balance inventory waste against setup energy costs.";
+            }
+        }
+
+        function recordSnapshot() {
+            snapshotCount++;
+            emptyLogMsg.style.display = 'none';
+            
+            const row = document.createElement('tr');
+            row.className = "hover:bg-slate-800 transition-colors";
+            
+            row.innerHTML = `
+                <td>${snapshotCount}</td>
+                <td class="text-purple-400 font-mono">${currentState.variety}</td>
+                <td class="text-sky-400 font-mono">${currentState.volume}</td>
+                <td class="font-bold text-white">${currentState.process}</td>
+                <td>
+                    <span class="${currentState.efficiency > 80 ? 'text-green-400' : currentState.efficiency > 50 ? 'text-yellow-400' : 'text-red-400'}">
+                        ${currentState.efficiency}%
+                    </span>
+                </td>
+                <td>${currentState.strategy}</td>
+                <td class="${currentState.waste === 'High' ? 'text-red-400' : 'text-slate-400'}">${currentState.waste}</td>
+                <td class="${currentState.energy === 'High' ? 'text-yellow-400' : 'text-slate-400'}">${currentState.energy}</td>
+            `;
+            
+            logBody.appendChild(row);
+        }
+
+        function clearLog() {
+            logBody.innerHTML = '';
+            emptyLogMsg.style.display = 'block';
+            snapshotCount = 0;
+        }
+
+        // Event Listeners
+        varietyInput.addEventListener('input', updateSimulation);
+        volumeInput.addEventListener('input', updateSimulation);
+
+        // Init
+        updateSimulation();
+
+    </script>
+</body>
+</html>
